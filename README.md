@@ -3,7 +3,7 @@
 # Cattle Disease Detection System
 
 ## Features
-- Synthetic + real data pipeline
+- Real + synthetic data pipeline
 - ML-based disease prediction
 - Early detection focus
 
