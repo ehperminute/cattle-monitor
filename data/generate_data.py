@@ -1,12 +1,7 @@
 import pandas as pd
 import numpy as np
 import kagglehub
-
-FEATURES = [
-    "Age","Weight","Body_Temperature","Heart_Rate",
-    "Appetite_Loss","Vomiting","Diarrhea","Coughing"
-]
-
+from config import FEATURES
 
 def augment_data(df, n_times=3):
     augmented = []
