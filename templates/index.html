@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattle Health Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 720px;
+            margin: 40px auto;
+            padding: 0 16px;
+        }
+        form {
+            display: grid;
+            gap: 12px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+        }
+        .checkbox-group {
+            display: grid;
+            gap: 8px;
+        }
+        button {
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+        .result, .error {
+            margin-top: 24px;
+            padding: 12px;
+            border-radius: 6px;
+        }
+        .result {
+            background: #f2f2f2;
+        }
+        .error {
+            background: #ffe5e5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cattle Health Prediction Demo</h1>
+    <p>Enter the animal data and symptom indicators to get a baseline prediction.</p>
+
+    <form method="post">
+        <div>
+            <label for="Age">Age</label>
+            <input type="number" step="any" name="Age" required>
+        </div>
+
+        <div>
+            <label for="Weight">Weight</label>
+            <input type="number" step="any" name="Weight" required>
+        </div>
+
+        <div>
+            <label for="Body_Temperature">Body Temperature</label>
+            <input type="number" step="any" name="Body_Temperature" required>
+        </div>
+
+        <div>
+            <label for="Heart_Rate">Heart Rate</label>
+            <input type="number" step="any" name="Heart_Rate" required>
+        </div>
+
+        <div class="checkbox-group">
+            <label><input type="checkbox" name="Appetite_Loss"> Appetite Loss</label>
+            <label><input type="checkbox" name="Vomiting"> Vomiting</label>
+            <label><input type="checkbox" name="Diarrhea"> Diarrhea</label>
+            <label><input type="checkbox" name="Coughing"> Coughing</label>
+        </div>
+
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if result %}
+    <div class="result">
+        <h2>Prediction: {{ result }}</h2>
+        {% if probability %}
+        <p><strong>Probabilities:</strong></p>
+        <ul>
+            {% for label, value in probability.items() %}
+            <li>{{ label }}: {{ value }}%</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="error">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+</body>
+</html>
