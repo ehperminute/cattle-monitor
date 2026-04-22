@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from config import FEATURES, TARGET
 
 
-df = pd.read_csv("final_data.csv")  
+df = pd.read_csv("data/final_data.csv")  
 
 X = df[FEATURES]
 y = df[TARGET]
