@@ -3,99 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cattle Health Demo</title>
+    <title>Herd Monitoring Dashboard</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 720px;
-            margin: 40px auto;
-            padding: 0 16px;
+        body { font-family: Arial, sans-serif; margin: 32px; }
+        h1 { margin-bottom: 8px; }
+        .cards { display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 16px;
+            min-width: 170px;
+            background: #fafafa;
         }
-        form {
-            display: grid;
-            gap: 12px;
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
         }
-        label {
+        th { background: #f4f4f4; }
+        .pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
             font-weight: bold;
         }
-        input[type="number"] {
-            width: 100%;
-            padding: 8px;
-        }
-        .checkbox-group {
-            display: grid;
-            gap: 8px;
-        }
-        button {
-            padding: 10px 16px;
-            cursor: pointer;
-        }
-        .result, .error {
-            margin-top: 24px;
-            padding: 12px;
-            border-radius: 6px;
-        }
-        .result {
-            background: #f2f2f2;
-        }
+        .high { background: #ffd9d9; }
+        .review { background: #fff1cc; }
+        .normal { background: #dff3df; }
         .error {
             background: #ffe5e5;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        a.button {
+            display: inline-block;
+            padding: 6px 10px;
+            text-decoration: none;
+            border: 1px solid #bbb;
+            border-radius: 6px;
+            color: #222;
         }
     </style>
 </head>
 <body>
-    <h1>Cattle Health Prediction Demo</h1>
-    <p>Enter the animal data and symptom indicators to get a baseline prediction.</p>
+    <h1>Herd Monitoring Dashboard</h1>
+    <p>Latest observation per cow, sorted by sick probability in descending order.</p>
 
-    <form method="post">
-        <div>
-            <label for="Age">Age</label>
-            <input type="number" step="any" name="Age" required>
-        </div>
+    {% if error %}
+        <div class="error"><strong>Error:</strong> {{ error }}</div>
+    {% endif %}
 
-        <div>
-            <label for="Weight">Weight</label>
-            <input type="number" step="any" name="Weight" required>
-        </div>
-
-        <div>
-            <label for="Body_Temperature">Body Temperature</label>
-            <input type="number" step="any" name="Body_Temperature" required>
-        </div>
-
-        <div>
-            <label for="Heart_Rate">Heart Rate</label>
-            <input type="number" step="any" name="Heart_Rate" required>
-        </div>
-
-        <div class="checkbox-group">
-            <label><input type="checkbox" name="Appetite_Loss"> Appetite Loss</label>
-            <label><input type="checkbox" name="Vomiting"> Vomiting</label>
-            <label><input type="checkbox" name="Diarrhea"> Diarrhea</label>
-            <label><input type="checkbox" name="Coughing"> Coughing</label>
-        </div>
-
-        <button type="submit">Predict</button>
-    </form>
-
-    {% if result %}
-    <div class="result">
-        <h2>Prediction: {{ result }}</h2>
-        {% if probability %}
-        <p><strong>Probabilities:</strong></p>
-        <ul>
-            {% for label, value in probability.items() %}
-            <li>{{ label }}: {{ value }}%</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+    {% if summary %}
+    <div class="cards">
+        <div class="card"><strong>Total cows</strong><br>{{ summary.total_cows }}</div>
+        <div class="card"><strong>High risk</strong><br>{{ summary.high_risk }}</div>
+        <div class="card"><strong>Review</strong><br>{{ summary.review }}</div>
+        <div class="card"><strong>Normal</strong><br>{{ summary.normal }}</div>
     </div>
     {% endif %}
 
-    {% if error %}
-    <div class="error">
-        <strong>Error:</strong> {{ error }}
-    </div>
+    {% if cows %}
+    <table>
+        <thead>
+            <tr>
+                <th>Cow ID</th>
+                <th>Date</th>
+                <th>Prediction</th>
+                <th>Sick Probability</th>
+                <th>Status</th>
+                <th>Recommendation</th>
+                <th>Case</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cow in cows %}
+            <tr>
+                <td>{{ cow["Cow_ID"] }}</td>
+                <td>{{ cow["Observation_Date"].strftime("%Y-%m-%d") if cow["Observation_Date"] else "" }}</td>
+                <td>{{ cow["Prediction"] }}</td>
+                <td>{{ cow["Sick_Probability"] }}%</td>
+                <td>
+                    {% if cow["Status"] == "High risk" %}
+                        <span class="pill high">{{ cow["Status"] }}</span>
+                    {% elif cow["Status"] == "Review" %}
+                        <span class="pill review">{{ cow["Status"] }}</span>
+                    {% else %}
+                        <span class="pill normal">{{ cow["Status"] }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ cow["Recommendation"] }}</td>
+                <td><a class="button" href="/cow/{{ cow['Cow_ID'] }}">View case</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% endif %}
 </body>
 </html>
