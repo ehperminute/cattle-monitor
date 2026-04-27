@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ cow["Cow_ID"] }} - Case Detail</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 32px; }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            background: #fafafa;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th { background: #f4f4f4; }
+        .pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .high { background: #ffd9d9; }
+        .review { background: #fff1cc; }
+        .normal { background: #dff3df; }
+        a.button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 12px;
+            text-decoration: none;
+            border: 1px solid #bbb;
+            border-radius: 6px;
+            color: #222;
+        }
+    </style>
+</head>
+<body>
+    <h1>Case Detail: {{ cow["Cow_ID"] }}</h1>
+
+    <div class="card">
+        <h2>Latest Status</h2>
+        <p><strong>Date:</strong> {{ cow["Observation_Date"].strftime("%Y-%m-%d") if cow["Observation_Date"] else "" }}</p>
+        <p><strong>Prediction:</strong> {{ cow["Prediction"] }}</p>
+        <p><strong>Sick Probability:</strong> {{ cow["Sick_Probability"] }}%</p>
+        <p><strong>Healthy Probability:</strong> {{ cow["Healthy_Probability"] }}%</p>
+        <p>
+            <strong>Status:</strong>
+            {% if cow["Status"] == "High risk" %}
+                <span class="pill high">{{ cow["Status"] }}</span>
+            {% elif cow["Status"] == "Review" %}
+                <span class="pill review">{{ cow["Status"] }}</span>
+            {% else %}
+                <span class="pill normal">{{ cow["Status"] }}</span>
+            {% endif %}
+        </p>
+        <p><strong>Recommendation:</strong> {{ cow["Recommendation"] }}</p>
+    </div>
+
+    <div class="card">
+        <h2>Observation History</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Temperature</th>
+                    <th>Heart Rate</th>
+                    <th>Appetite Loss</th>
+                    <th>Vomiting</th>
+                    <th>Diarrhea</th>
+                    <th>Coughing</th>
+                    <th>Sick Probability</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                <tr>
+                    <td>{{ row["Observation_Date"].strftime("%Y-%m-%d") if row["Observation_Date"] else "" }}</td>
+                    <td>{{ row["Body_Temperature"] }}</td>
+                    <td>{{ row["Heart_Rate"] }}</td>
+                    <td>{{ row["Appetite_Loss"] }}</td>
+                    <td>{{ row["Vomiting"] }}</td>
+                    <td>{{ row["Diarrhea"] }}</td>
+                    <td>{{ row["Coughing"] }}</td>
+                    <td>{{ row["Sick_Probability"] }}%</td>
+                    <td>{{ row["Status"] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <a class="button" href="/">Back to dashboard</a>
+</body>
+</html>
