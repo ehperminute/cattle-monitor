@@ -23,7 +23,7 @@ def main() -> None:
         run_step("Training model", [sys.executable, "train.py"])
     else:
         print(f"\nModel already exists at {MODEL_PATH}")
-
+    run_step("Launching demo app", [sys.executable, "generate_monitoring_data.py"])
     run_step("Launching demo app", [sys.executable, "app.py"])
 
 
