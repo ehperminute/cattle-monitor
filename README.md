@@ -9,5 +9,4 @@
 
 ## How to run
 
-python data/generate_data.py  
-python ml/train.py
+python run_demo.py
