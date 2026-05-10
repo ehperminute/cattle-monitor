@@ -1,8 +1,5 @@
-
-import os
 import subprocess
 import sys
-from config import DATA_PATH, MODEL_PATH
 
 
 def run_step(label: str, command: list[str]) -> None:
@@ -14,16 +11,10 @@ def run_step(label: str, command: list[str]) -> None:
 
 
 def main() -> None:
-    if not os.path.exists(DATA_PATH):
-        run_step("Generating dataset", [sys.executable, "generate_data.py"])
-    else:
-        print(f"\nDataset already exists at {DATA_PATH}")
-
-    if not os.path.exists(MODEL_PATH):
-        run_step("Training model", [sys.executable, "train.py"])
-    else:
-        print(f"\nModel already exists at {MODEL_PATH}")
-    run_step("Launching demo app", [sys.executable, "generate_monitoring_data.py"])
+    run_step("Generating base dataset", [sys.executable, "generate_data.py"])
+    run_step("Training model", [sys.executable, "train.py"])
+    run_step("Generating monitoring dataset", [sys.executable, "generate_monitoring_data.py"])
+    run_step("Seeding SQLite database", [sys.executable, "seed_db.py"])
     run_step("Launching demo app", [sys.executable, "app.py"])
 
 
