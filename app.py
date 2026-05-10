@@ -1,118 +1,181 @@
-import os
-import joblib
-import pandas as pd
-from flask import Flask, render_template, abort
+from __future__ import annotations
 
-from config import FEATURES, MODEL_PATH, MONITORING_DATA_PATH
+from flask import Flask, abort, redirect, render_template, request, url_for
+
+from db import execute, init_db, query_all, query_one
 
 app = Flask(__name__)
-
-model = None
-if os.path.exists(MODEL_PATH):
-    model = joblib.load(MODEL_PATH)
+init_db()
 
 
-def classify_status(sick_probability: float) -> str:
-    if sick_probability >= 70:
-        return "High risk"
-    if sick_probability >= 40:
-        return "Review"
-    return "Normal"
+def latest_dashboard_rows(status_filter: str | None = None) -> list[dict]:
+    sql = """
+        SELECT o.*
+        FROM observations o
+        INNER JOIN (
+            SELECT cow_id, MAX(observation_date) AS max_date
+            FROM observations
+            GROUP BY cow_id
+        ) latest
+        ON o.cow_id = latest.cow_id AND o.observation_date = latest.max_date
+    """
+    params: tuple = ()
+    if status_filter:
+        sql += " WHERE o.status = ?"
+        params = (status_filter,)
+    sql += " ORDER BY o.sick_probability DESC, o.cow_id ASC"
+
+    rows = query_all(sql, params)
+    return [dict(r) for r in rows]
 
 
-def build_recommendation(row) -> str:
-    temp = row["Body_Temperature"]
-    cough = row["Coughing"]
-    diarrhea = row["Diarrhea"]
-    appetite_loss = row["Appetite_Loss"]
-    hr = row["Heart_Rate"]
-    sick_probability = row["Sick_Probability"]
-
-    if temp > 39.5 and cough == 1:
-        return "Respiratory follow-up recommended."
-    if diarrhea == 1 and appetite_loss == 1:
-        return "Digestive and hydration review recommended."
-    if temp > 39.5 and hr > 85:
-        return "General clinical review recommended."
-    if sick_probability >= 40:
-        return "Veterinary review and closer monitoring recommended."
-    return "Continue routine monitoring."
-
-
-def prepare_dashboard_data():
-    if model is None:
-        raise RuntimeError("Model file not found. Run train.py first.")
-    if not os.path.exists(MONITORING_DATA_PATH):
-        raise RuntimeError(
-            f"Monitoring dataset not found at {MONITORING_DATA_PATH}. Run generate_monitoring_data.py first."
-        )
-
-    df = pd.read_csv(MONITORING_DATA_PATH).copy()
-    df["Observation_Date"] = pd.to_datetime(df["Observation_Date"])
-
-    X = df[FEATURES]
-    predictions = model.predict(X)
-
-    probs = model.predict_proba(X)
-    classes = list(model.classes_)
-
-    healthy_idx = classes.index("healthy")
-    sick_idx = classes.index("sick")
-
-    df["Prediction"] = predictions
-    df["Healthy_Probability"] = (probs[:, healthy_idx] * 100).round(2)
-    df["Sick_Probability"] = (probs[:, sick_idx] * 100).round(2)
-    df["Status"] = df["Sick_Probability"].apply(classify_status)
-    df["Recommendation"] = df.apply(build_recommendation, axis=1)
-
-    return df
+def dashboard_summary(rows: list[dict]) -> dict:
+    return {
+        "total_cows": len(rows),
+        "high_risk": sum(1 for r in rows if r["status"] == "High risk"),
+        "review": sum(1 for r in rows if r["status"] == "Review"),
+        "normal": sum(1 for r in rows if r["status"] == "Normal"),
+    }
 
 
 @app.route("/")
 def index():
-    try:
-        df = prepare_dashboard_data()
-
-        latest = (
-            df.sort_values(["Cow_ID", "Observation_Date"])
-              .groupby("Cow_ID", as_index=False)
-              .tail(1)
-              .sort_values("Sick_Probability", ascending=False)
-        )
-
-        summary = {
-            "total_cows": latest["Cow_ID"].nunique(),
-            "high_risk": (latest["Status"] == "High risk").sum(),
-            "review": (latest["Status"] == "Review").sum(),
-            "normal": (latest["Status"] == "Normal").sum(),
-        }
-
-        cows = latest.to_dict(orient="records")
-        return render_template("index.html", cows=cows, summary=summary, error=None)
-
-    except Exception as exc:
-        return render_template("index.html", cows=[], summary=None, error=str(exc))
+    status_filter = request.args.get("status", "").strip() or None
+    rows = latest_dashboard_rows(status_filter)
+    summary = dashboard_summary(rows)
+    return render_template(
+        "index.html",
+        cows=rows,
+        summary=summary,
+        current_filter=status_filter or "All"
+    )
 
 
 @app.route("/cow/<cow_id>")
-def cow_detail(cow_id):
-    try:
-        df = prepare_dashboard_data()
-        history = df[df["Cow_ID"] == cow_id].sort_values("Observation_Date", ascending=False)
+def cow_detail(cow_id: str):
+    latest = query_one(
+        """
+        SELECT *
+        FROM observations
+        WHERE cow_id = ?
+        ORDER BY observation_date DESC, id DESC
+        LIMIT 1
+        """,
+        (cow_id,),
+    )
+    if latest is None:
+        abort(404)
 
-        if history.empty:
-            abort(404)
+    history = query_all(
+        """
+        SELECT *
+        FROM observations
+        WHERE cow_id = ?
+        ORDER BY observation_date DESC, id DESC
+        """,
+        (cow_id,),
+    )
 
-        latest = history.iloc[0].to_dict()
-        history_records = history.to_dict(orient="records")
+    notes = query_all(
+        """
+        SELECT *
+        FROM case_notes
+        WHERE cow_id = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (cow_id,),
+    )
 
-        return render_template(
-            "cow_detail.html",
-            cow=latest,
-            history=history_records
+    actions = query_all(
+        """
+        SELECT *
+        FROM follow_up_actions
+        WHERE cow_id = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (cow_id,),
+    )
+
+    return render_template(
+        "cow_detail.html",
+        cow=dict(latest),
+        history=[dict(r) for r in history],
+        notes=[dict(r) for r in notes],
+        actions=[dict(r) for r in actions],
+    )
+
+
+@app.post("/cow/<cow_id>/notes")
+def add_note(cow_id: str):
+    latest = query_one(
+        """
+        SELECT id
+        FROM observations
+        WHERE cow_id = ?
+        ORDER BY observation_date DESC, id DESC
+        LIMIT 1
+        """,
+        (cow_id,),
+    )
+    if latest is None:
+        abort(404)
+
+    note_type = (request.form.get("note_type") or "general").strip()
+    note_text = (request.form.get("note_text") or "").strip()
+
+    if note_text:
+        execute(
+            """
+            INSERT INTO case_notes (cow_id, observation_id, note_type, note_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            (cow_id, latest["id"], note_type, note_text),
         )
-    except Exception as exc:
-        abort(500, description=str(exc))
+
+    return redirect(url_for("cow_detail", cow_id=cow_id))
+
+
+@app.post("/cow/<cow_id>/actions")
+def add_action(cow_id: str):
+    latest = query_one(
+        """
+        SELECT id
+        FROM observations
+        WHERE cow_id = ?
+        ORDER BY observation_date DESC, id DESC
+        LIMIT 1
+        """,
+        (cow_id,),
+    )
+    if latest is None:
+        abort(404)
+
+    action_type = (request.form.get("action_type") or "").strip()
+    action_status = (request.form.get("status") or "open").strip()
+
+    if action_type:
+        execute(
+            """
+            INSERT INTO follow_up_actions (cow_id, observation_id, action_type, status)
+            VALUES (?, ?, ?, ?)
+            """,
+            (cow_id, latest["id"], action_type, action_status),
+        )
+
+    return redirect(url_for("cow_detail", cow_id=cow_id))
+
+
+@app.post("/actions/<int:action_id>/status")
+def update_action_status(action_id: int):
+    cow_id = request.form.get("cow_id", "")
+    status = (request.form.get("status") or "open").strip()
+
+    execute(
+        "UPDATE follow_up_actions SET status = ? WHERE id = ?",
+        (status, action_id),
+    )
+
+    return redirect(url_for("cow_detail", cow_id=cow_id))
 
 
 if __name__ == "__main__":
