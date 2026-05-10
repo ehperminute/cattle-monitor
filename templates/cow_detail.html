@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ cow["Cow_ID"] }} - Case Detail</title>
+    <title>{{ cow["cow_id"] }} - Case Detail</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 32px; }
         .card {
@@ -42,25 +42,25 @@
     </style>
 </head>
 <body>
-    <h1>Case Detail: {{ cow["Cow_ID"] }}</h1>
+    <h1>Case Detail: {{ cow["cow_id"] }}</h1>
 
     <div class="card">
         <h2>Latest Status</h2>
-        <p><strong>Date:</strong> {{ cow["Observation_Date"].strftime("%Y-%m-%d") if cow["Observation_Date"] else "" }}</p>
-        <p><strong>Prediction:</strong> {{ cow["Prediction"] }}</p>
-        <p><strong>Sick Probability:</strong> {{ cow["Sick_Probability"] }}%</p>
-        <p><strong>Healthy Probability:</strong> {{ cow["Healthy_Probability"] }}%</p>
+        <p><strong>Date:</strong> {{ cow["observation_date"] }}</p>
+        <p><strong>Prediction:</strong> {{ cow["prediction"] }}</p>
+        <p><strong>Sick Probability:</strong> {{ cow["sick_probability"] }}%</p>
+        <p><strong>Healthy Probability:</strong> {{ cow["healthy_probability"] }}%</p>
         <p>
             <strong>Status:</strong>
-            {% if cow["Status"] == "High risk" %}
-                <span class="pill high">{{ cow["Status"] }}</span>
-            {% elif cow["Status"] == "Review" %}
-                <span class="pill review">{{ cow["Status"] }}</span>
+            {% if cow["status"] == "High risk" %}
+                <span class="pill high">{{ cow["status"] }}</span>
+            {% elif cow["status"] == "Review" %}
+                <span class="pill review">{{ cow["status"] }}</span>
             {% else %}
-                <span class="pill normal">{{ cow["Status"] }}</span>
+                <span class="pill normal">{{ cow["status"] }}</span>
             {% endif %}
         </p>
-        <p><strong>Recommendation:</strong> {{ cow["Recommendation"] }}</p>
+        <p><strong>Recommendation:</strong> {{ cow["recommendation"] }}</p>
     </div>
 
     <div class="card">
@@ -82,15 +82,15 @@
             <tbody>
                 {% for row in history %}
                 <tr>
-                    <td>{{ row["Observation_Date"].strftime("%Y-%m-%d") if row["Observation_Date"] else "" }}</td>
-                    <td>{{ row["Body_Temperature"] }}</td>
-                    <td>{{ row["Heart_Rate"] }}</td>
-                    <td>{{ row["Appetite_Loss"] }}</td>
-                    <td>{{ row["Vomiting"] }}</td>
-                    <td>{{ row["Diarrhea"] }}</td>
-                    <td>{{ row["Coughing"] }}</td>
-                    <td>{{ row["Sick_Probability"] }}%</td>
-                    <td>{{ row["Status"] }}</td>
+                    <td>{{ row["observation_date"] }}</td>
+                    <td>{{ row["body_temperature"] }}</td>
+                    <td>{{ row["heart_rate"] }}</td>
+                    <td>{{ row["appetite_loss"] }}</td>
+                    <td>{{ row["vomiting"] }}</td>
+                    <td>{{ row["diarrhea"] }}</td>
+                    <td>{{ row["coughing"] }}</td>
+                    <td>{{ row["sick_probability"] }}%</td>
+                    <td>{{ row["status"] }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
