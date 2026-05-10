@@ -82,21 +82,21 @@
         <tbody>
             {% for cow in cows %}
             <tr>
-                <td>{{ cow["Cow_ID"] }}</td>
-                <td>{{ cow["Observation_Date"].strftime("%Y-%m-%d") if cow["Observation_Date"] else "" }}</td>
-                <td>{{ cow["Prediction"] }}</td>
-                <td>{{ cow["Sick_Probability"] }}%</td>
+                <td>{{ cow["cow_id"] }}</td>
+                <td>{{ cow["observation_date"] }}</td>
+                <td>{{ cow["prediction"] }}</td>
+                <td>{{ cow["sick_probability"] }}%</td>
                 <td>
-                    {% if cow["Status"] == "High risk" %}
-                        <span class="pill high">{{ cow["Status"] }}</span>
-                    {% elif cow["Status"] == "Review" %}
-                        <span class="pill review">{{ cow["Status"] }}</span>
+                    {% if cow["status"] == "High risk" %}
+                        <span class="pill high">{{ cow["status"] }}</span>
+                    {% elif cow["status"] == "Review" %}
+                        <span class="pill review">{{ cow["status"] }}</span>
                     {% else %}
-                        <span class="pill normal">{{ cow["Status"] }}</span>
+                        <span class="pill normal">{{ cow["status"] }}</span>
                     {% endif %}
                 </td>
-                <td>{{ cow["Recommendation"] }}</td>
-                <td><a class="button" href="/cow/{{ cow['Cow_ID'] }}">View case</a></td>
+                <td>{{ cow["recommendation"] }}</td>
+                <td><a class="button" href="/cow/{{ cow['cow_id'] }}">View case</a></td>
             </tr>
             {% endfor %}
         </tbody>
