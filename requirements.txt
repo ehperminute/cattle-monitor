@@ -1,13 +1,8 @@
-pandas
-numpy
-scikit-learn
-matplotlib
-fastapi
-uvicorn
 flask
 pandas
 numpy
-scikit-learn
-joblib
 kagglehub
 matplotlib
+scikit-learn
+joblib
+tensorflow

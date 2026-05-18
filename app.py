@@ -1,115 +1,193 @@
 import os
+
 import joblib
 import pandas as pd
-from flask import Flask, render_template, abort
+from flask import Flask, abort, render_template, request
+from tensorflow.keras.models import load_model
 
-from config import FEATURES, MODEL_PATH, MONITORING_DATA_PATH
+from config import (
+    DEFAULT_LANG,
+    FEATURES,
+    MODEL_PATH,
+    MONITORING_DATA_PATH,
+    SCALER_PATH,
+    SUPPORTED_LANGS,
+)
+from i18n import get_supported_language_labels, get_translations
 
 app = Flask(__name__)
 
-model = None
-if os.path.exists(MODEL_PATH):
-    model = joblib.load(MODEL_PATH)
+model = load_model(MODEL_PATH) if os.path.exists(MODEL_PATH) else None
+scaler = joblib.load(SCALER_PATH) if os.path.exists(SCALER_PATH) else None
+
+
+def get_lang() -> str:
+    lang = request.args.get("lang", DEFAULT_LANG).strip().lower()
+    if lang not in SUPPORTED_LANGS:
+        return DEFAULT_LANG
+    return lang
 
 
 def classify_status(sick_probability: float) -> str:
     if sick_probability >= 70:
-        return "High risk"
+        return "high_risk"
     if sick_probability >= 40:
-        return "Review"
-    return "Normal"
+        return "review"
+    return "normal"
 
 
-def build_recommendation(row) -> str:
-    temp = row["Body_Temperature"]
-    cough = row["Coughing"]
-    diarrhea = row["Diarrhea"]
-    appetite_loss = row["Appetite_Loss"]
-    hr = row["Heart_Rate"]
-    sick_probability = row["Sick_Probability"]
+def build_recommendation(row: pd.Series, t: dict) -> str:
+    symptom_count = int(row["appetite_loss"] + row["vomiting"] + row["diarrhea"] + row["coughing"])
 
-    if temp > 39.5 and cough == 1:
-        return "Respiratory follow-up recommended."
-    if diarrhea == 1 and appetite_loss == 1:
-        return "Digestive and hydration review recommended."
-    if temp > 39.5 and hr > 85:
-        return "General clinical review recommended."
-    if sick_probability >= 40:
-        return "Veterinary review and closer monitoring recommended."
-    return "Continue routine monitoring."
+    if row["body_temperature"] >= 40.0 and row["coughing"] == 1:
+        return t["respiratory_review"]
+    if row["diarrhea"] == 1 and row["appetite_loss"] == 1:
+        return t["digestive_review"]
+    if row["body_temperature"] >= 39.3 and row["heart_rate"] >= 82:
+        return t["general_review"]
+    if row["sick_probability"] >= 40:
+        return t["vet_review"]
+    if symptom_count >= 1:
+        return t["general_review"]
+    return t["routine_monitoring"]
 
 
-def prepare_dashboard_data():
-    if model is None:
-        raise RuntimeError("Model file not found. Run train.py first.")
+def build_risk_explanation(row: pd.Series, t: dict) -> str:
+    reasons = []
+    if row["body_temperature"] >= 39.3:
+        reasons.append(t["reason_temp"])
+    if row["heart_rate"] >= 82:
+        reasons.append(t["reason_hr"])
+    if row["coughing"] == 1:
+        reasons.append(t["reason_cough"])
+    if row["diarrhea"] == 1:
+        reasons.append(t["reason_diarrhea"])
+    if row["appetite_loss"] == 1:
+        reasons.append(t["reason_appetite"])
+
+    if not reasons:
+        return t["reason_none"]
+    return "; ".join(reasons)
+
+
+def prepare_dashboard_data(t: dict) -> pd.DataFrame:
+    if model is None or scaler is None:
+        raise RuntimeError("Model or scaler not found. Run train_sequential.py first.")
     if not os.path.exists(MONITORING_DATA_PATH):
-        raise RuntimeError(
-            f"Monitoring dataset not found at {MONITORING_DATA_PATH}. Run generate_monitoring_data.py first."
-        )
+        raise RuntimeError("Monitoring dataset not found. Run generate_monitoring_data.py first.")
 
     df = pd.read_csv(MONITORING_DATA_PATH).copy()
-    df["Observation_Date"] = pd.to_datetime(df["Observation_Date"])
+    df["observation_date"] = pd.to_datetime(df["observation_date"])
 
-    X = df[FEATURES]
-    predictions = model.predict(X)
+    X_scaled = scaler.transform(df[FEATURES])
+    sick_probabilities = model.predict(X_scaled, verbose=0).flatten()
 
-    probs = model.predict_proba(X)
-    classes = list(model.classes_)
-
-    healthy_idx = classes.index("healthy")
-    sick_idx = classes.index("sick")
-
-    df["Prediction"] = predictions
-    df["Healthy_Probability"] = (probs[:, healthy_idx] * 100).round(2)
-    df["Sick_Probability"] = (probs[:, sick_idx] * 100).round(2)
-    df["Status"] = df["Sick_Probability"].apply(classify_status)
-    df["Recommendation"] = df.apply(build_recommendation, axis=1)
-
+    df["prediction"] = ["sick" if prob >= 0.5 else "healthy" for prob in sick_probabilities]
+    df["sick_probability"] = (sick_probabilities * 100).round(2)
+    df["healthy_probability"] = (100 - df["sick_probability"]).round(2)
+    df["status"] = df["sick_probability"].apply(classify_status)
+    df["recommendation"] = df.apply(lambda row: build_recommendation(row, t), axis=1)
+    df["risk_explanation"] = df.apply(lambda row: build_risk_explanation(row, t), axis=1)
     return df
 
 
 @app.route("/")
 def index():
-    try:
-        df = prepare_dashboard_data()
+    lang = get_lang()
+    t = get_translations(lang)
+    langs = get_supported_language_labels()
 
+    try:
+        df = prepare_dashboard_data(t)
         latest = (
-            df.sort_values(["Cow_ID", "Observation_Date"])
-              .groupby("Cow_ID", as_index=False)
-              .tail(1)
-              .sort_values("Sick_Probability", ascending=False)
+            df.sort_values(["cow_id", "observation_date"])
+            .groupby("cow_id", as_index=False)
+            .tail(1)
+            .sort_values("sick_probability", ascending=False)
         )
 
         summary = {
-            "total_cows": latest["Cow_ID"].nunique(),
-            "high_risk": (latest["Status"] == "High risk").sum(),
-            "review": (latest["Status"] == "Review").sum(),
-            "normal": (latest["Status"] == "Normal").sum(),
+            "total_cows": int(latest["cow_id"].nunique()),
+            "high_risk": int((latest["status"] == "high_risk").sum()),
+            "review": int((latest["status"] == "review").sum()),
+            "normal": int((latest["status"] == "normal").sum()),
         }
 
-        cows = latest.to_dict(orient="records")
-        return render_template("index.html", cows=cows, summary=summary, error=None)
-
+        return render_template(
+            "index.html",
+            cows=latest.to_dict(orient="records"),
+            summary=summary,
+            error=None,
+            t=t,
+            lang=lang,
+            langs=langs,
+        )
     except Exception as exc:
-        return render_template("index.html", cows=[], summary=None, error=str(exc))
+        return render_template(
+            "index.html",
+            cows=[],
+            summary=None,
+            error=str(exc),
+            t=t,
+            lang=lang,
+            langs=langs,
+        )
 
 
 @app.route("/cow/<cow_id>")
-def cow_detail(cow_id):
-    try:
-        df = prepare_dashboard_data()
-        history = df[df["Cow_ID"] == cow_id].sort_values("Observation_Date", ascending=False)
+def cow_detail(cow_id: str):
+    lang = get_lang()
+    t = get_translations(lang)
+    langs = get_supported_language_labels()
 
+    try:
+        df = prepare_dashboard_data(t)
+        history = df[df["cow_id"] == cow_id].sort_values("observation_date", ascending=False)
         if history.empty:
             abort(404)
 
-        latest = history.iloc[0].to_dict()
-        history_records = history.to_dict(orient="records")
+        latest = history.iloc[0].copy()
+        previous = history.iloc[1].copy() if len(history) > 1 else None
+
+        if previous is not None:
+            trend = {
+                "temperature_delta": round(float(latest["body_temperature"] - previous["body_temperature"]), 2),
+                "risk_delta": round(float(latest["sick_probability"] - previous["sick_probability"]), 2),
+                "previous_temperature": float(previous["body_temperature"]),
+                "previous_risk": float(previous["sick_probability"]),
+            }
+        else:
+            trend = {
+                "temperature_delta": 0.0,
+                "risk_delta": 0.0,
+                "previous_temperature": float(latest["body_temperature"]),
+                "previous_risk": float(latest["sick_probability"]),
+            }
+
+        clinical_summary = {
+            "temperature": float(latest["body_temperature"]),
+            "heart_rate": float(latest["heart_rate"]),
+            "appetite_loss": int(latest["appetite_loss"]),
+            "vomiting": int(latest["vomiting"]),
+            "diarrhea": int(latest["diarrhea"]),
+            "coughing": int(latest["coughing"]),
+            "symptom_count": int(
+                latest["appetite_loss"]
+                + latest["vomiting"]
+                + latest["diarrhea"]
+                + latest["coughing"]
+            ),
+        }
 
         return render_template(
             "cow_detail.html",
-            cow=latest,
-            history=history_records
+            cow=latest.to_dict(),
+            history=history.to_dict(orient="records"),
+            clinical_summary=clinical_summary,
+            trend=trend,
+            t=t,
+            lang=lang,
+            langs=langs,
         )
     except Exception as exc:
         abort(500, description=str(exc))
