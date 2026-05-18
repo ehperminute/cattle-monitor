@@ -36,20 +36,20 @@ def classify_status(sick_probability: float) -> str:
     return "normal"
 
 
-def build_recommendation(row: pd.Series, t: dict) -> str:
-    symptom_count = int(row["appetite_loss"] + row["vomiting"] + row["diarrhea"] + row["coughing"])
+def build_recommendation(row, t):
+    symptom_count = row["appetite_loss"] + row["vomiting"] + row["diarrhea"] + row["coughing"]
 
     if row["body_temperature"] >= 40.0 and row["coughing"] == 1:
-        return t["respiratory_review"]
+        return t.get("respiratory_review", "Respiratory follow-up recommended.")
     if row["diarrhea"] == 1 and row["appetite_loss"] == 1:
-        return t["digestive_review"]
+        return t.get("digestive_review", "Digestive and hydration review recommended.")
     if row["body_temperature"] >= 39.3 and row["heart_rate"] >= 82:
-        return t["general_review"]
+        return t.get("general_review", "General clinical review recommended.")
     if row["sick_probability"] >= 40:
-        return t["vet_review"]
+        return t.get("vet_review", "Veterinary review and closer monitoring recommended.")
     if symptom_count >= 1:
-        return t["general_review"]
-    return t["routine_monitoring"]
+        return t.get("general_review", "General clinical review recommended.")
+    return t.get("routine_monitoring", "Continue routine monitoring.")
 
 
 def build_risk_explanation(row: pd.Series, t: dict) -> str:
